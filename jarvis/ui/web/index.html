@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>J.A.R.V.I.S.</title>
+<style>
+  :root {
+    --cyan: #38e8ff;
+    --cyan-dim: rgba(56, 232, 255, 0.35);
+    --gold: #ffc857;
+    --red: #ff4d5a;
+    --bg: #05080f;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg); font-family: "Segoe UI", system-ui, sans-serif; }
+  #net { position: absolute; inset: 0; }
+
+  #hud {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    justify-content: space-between; pointer-events: none; z-index: 2;
+  }
+  #toprow { display: flex; justify-content: space-between; align-items: flex-start; padding: 18px 24px; }
+  #title {
+    color: var(--cyan); letter-spacing: 0.55em;
+    font-size: 15px; font-weight: 600; text-shadow: 0 0 12px var(--cyan-dim);
+  }
+  #title small { display:block; letter-spacing: 0.18em; font-size: 9px; color: rgba(160,190,210,.55); margin-top: 4px; }
+
+  #topright { text-align: right; }
+  #clock {
+    color: var(--cyan); font-size: 30px; font-weight: 300; letter-spacing: 0.12em;
+    text-shadow: 0 0 14px var(--cyan-dim); font-variant-numeric: tabular-nums;
+  }
+  #clock span { font-size: 14px; letter-spacing: 0.2em; opacity: .8; }
+  #dateline { color: rgba(160,190,210,.6); font-size: 10px; letter-spacing: 0.32em; margin-top: 5px; }
+  #weather { margin-top: 14px; display: none; }
+  #wxmain { color: var(--cyan); font-size: 14px; letter-spacing: 0.14em; text-shadow: 0 0 10px var(--cyan-dim); }
+  #wxsub { color: rgba(160,190,210,.6); font-size: 10px; letter-spacing: 0.2em; margin-top: 4px; }
+
+  #inbox {
+    position: absolute; left: 24px; bottom: 96px; width: 350px; z-index: 2;
+    pointer-events: none;
+  }
+  #inboxtitle { color: rgba(160,190,210,.55); font-size: 10px; letter-spacing: 0.35em; margin-bottom: 8px; }
+  .mailrow {
+    display: flex; gap: 9px; font-size: 11px; margin-bottom: 6px;
+    color: rgba(190,210,225,.75); white-space: nowrap; overflow: hidden; align-items: baseline;
+  }
+  .mailwhen { color: var(--cyan); opacity: .75; flex: none; width: 40px; font-size: 10px; }
+  .mailfrom { color: var(--gold); flex: none; max-width: 110px; overflow: hidden; text-overflow: ellipsis; }
+  .mailsubj { overflow: hidden; text-overflow: ellipsis; opacity: .8; }
+  .mailhint { color: rgba(140,160,180,.4); font-size: 10px; letter-spacing: 0.15em; }
+
+  #sysline {
+    position: absolute; right: 24px; bottom: 96px; z-index: 2; text-align: right;
+    color: rgba(160,190,210,.45); font-size: 10px; letter-spacing: 0.25em;
+  }
+
+  #center { text-align: center; }
+  #status {
+    color: var(--cyan); font-size: 13px; letter-spacing: 0.4em; font-weight: 600;
+    text-shadow: 0 0 14px var(--cyan-dim); transition: color .3s;
+  }
+  #status.muted { color: var(--red); text-shadow: 0 0 14px rgba(255,77,90,.4); }
+  #transcript { margin-top: 14px; min-height: 58px; }
+  #userline { color: rgba(190, 210, 225, 0.75); font-size: 13px; font-style: italic; }
+  #replyline { color: var(--gold); font-size: 14px; margin-top: 6px; max-width: 640px;
+               margin-left: auto; margin-right: auto; line-height: 1.45;
+               text-shadow: 0 0 10px rgba(255,200,87,.25); }
+
+  #bottombar {
+    display: flex; align-items: center; justify-content: center; gap: 26px;
+    padding: 22px; pointer-events: auto;
+  }
+  #meter { display: flex; align-items: flex-end; gap: 3px; height: 34px; }
+  #meter .bar {
+    width: 5px; height: 4px; border-radius: 2px; background: var(--cyan);
+    box-shadow: 0 0 6px var(--cyan-dim); transition: height 0.06s linear, background .3s;
+  }
+  #meter.muted .bar { background: #3a3f4d; box-shadow: none; }
+  #micicon { color: var(--cyan); opacity: .85; }
+  #micicon.muted { color: #3a3f4d; }
+
+  #mutebtn {
+    pointer-events: auto; cursor: pointer; border: 1px solid var(--cyan-dim);
+    background: rgba(56,232,255,0.06); color: var(--cyan);
+    font-size: 12px; letter-spacing: 0.25em; padding: 10px 26px; border-radius: 999px;
+    transition: all .25s; font-family: inherit;
+  }
+  #mutebtn:hover { background: rgba(56,232,255,0.16); box-shadow: 0 0 16px var(--cyan-dim); }
+  #mutebtn.muted {
+    border-color: var(--red); color: var(--red); background: rgba(255,77,90,0.10);
+    box-shadow: 0 0 18px rgba(255,77,90,0.35);
+  }
+  #hint { position: absolute; bottom: 6px; width: 100%; text-align: center;
+          color: rgba(140,160,180,.35); font-size: 10px; letter-spacing: .15em; }
+
+  #histbtn {
+    pointer-events: auto; cursor: pointer; border: 1px solid var(--cyan-dim);
+    background: rgba(56,232,255,0.06); color: var(--cyan);
+    font-size: 12px; letter-spacing: 0.25em; padding: 10px 22px; border-radius: 999px;
+    transition: all .25s; font-family: inherit;
+  }
+  #histbtn:hover { background: rgba(56,232,255,0.16); box-shadow: 0 0 16px var(--cyan-dim); }
+  #histbtn.open { background: rgba(56,232,255,0.2); box-shadow: 0 0 18px var(--cyan-dim); }
+
+  #restartbtn {
+    pointer-events: auto; cursor: pointer; border: 1px solid rgba(255,200,87,.4);
+    background: rgba(255,200,87,0.06); color: var(--gold);
+    font-size: 12px; letter-spacing: 0.25em; padding: 10px 22px; border-radius: 999px;
+    transition: all .25s; font-family: inherit;
+  }
+  #restartbtn:hover { background: rgba(255,200,87,0.16); box-shadow: 0 0 16px rgba(255,200,87,.35); }
+  #restartbtn.armed { border-color: var(--red); color: var(--red); background: rgba(255,77,90,0.10); }
+
+  #histpanel {
+    position: absolute; right: 24px; top: 120px; bottom: 150px; width: 330px;
+    z-index: 3; display: none; flex-direction: column; pointer-events: auto;
+    background: rgba(5,10,20,0.82); border: 1px solid var(--cyan-dim);
+    border-radius: 10px; padding: 14px; backdrop-filter: blur(3px);
+  }
+  #histpanel.open { display: flex; }
+  #histtitle { color: rgba(160,190,210,.55); font-size: 10px; letter-spacing: .35em; margin-bottom: 10px; flex: none; }
+  #histlist { overflow-y: auto; flex: 1; scrollbar-width: thin; scrollbar-color: var(--cyan-dim) transparent; }
+  .histrow { margin-bottom: 10px; font-size: 11.5px; line-height: 1.4; }
+  .histmeta { font-size: 9px; letter-spacing: .2em; margin-bottom: 2px; }
+  .histmeta .who-user { color: var(--cyan); }
+  .histmeta .who-jarvis { color: var(--gold); }
+  .histmeta .when { color: rgba(140,160,180,.45); margin-left: 8px; }
+  .histrow.user .histtext { color: rgba(190,210,225,.8); font-style: italic; }
+  .histrow.jarvis .histtext { color: rgba(255,214,130,.85); }
+  .histempty { color: rgba(140,160,180,.4); font-size: 10px; letter-spacing: .15em; }
+</style>
+</head>
+<body>
+<canvas id="net"></canvas>
+
+<div id="hud">
+  <div id="toprow">
+    <div id="title">J.A.R.V.I.S.<small>JUST A RATHER VERY INTELLIGENT SYSTEM</small></div>
+    <div id="topright">
+      <div id="clock">--:--</div>
+      <div id="dateline"></div>
+      <div id="weather">
+        <div id="wxmain"></div>
+        <div id="wxsub"></div>
+      </div>
+    </div>
+  </div>
+  <div id="center">
+    <div id="status">INITIALIZING</div>
+    <div id="transcript">
+      <div id="userline"></div>
+      <div id="replyline"></div>
+    </div>
+  </div>
+  <div id="bottombar">
+    <svg id="micicon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/>
+    </svg>
+    <div id="meter"></div>
+    <button id="mutebtn" onclick="toggleMute()">MUTE</button>
+    <button id="histbtn" onclick="toggleHistory()">LOG</button>
+    <button id="restartbtn" onclick="restartJarvis()">RESTART</button>
+  </div>
+</div>
+<div id="histpanel">
+  <div id="histtitle">TRANSCRIPT</div>
+  <div id="histlist"><div class="histempty">NO CONVERSATIONS YET</div></div>
+</div>
+<div id="inbox">
+  <div id="inboxtitle">INBOX</div>
+  <div id="inboxlist"><div class="mailhint">CONNECTING…</div></div>
+</div>
+<div id="sysline"></div>
+<div id="hint">SPACE = MUTE &nbsp;·&nbsp; H = TRANSCRIPT &nbsp;·&nbsp; SAY "HEY JARVIS" TO WAKE OR INTERRUPT &nbsp;·&nbsp; "STAND DOWN" TO CLOSE</div>
+
+<script>
+// ---------------- state pushed from Python ----------------
+let micLevel = 0, speakLevel = 0, speaking = false, muted = false;
+
+const jarvisUI = {
+  setMicLevel: v => { micLevel = Math.min(1, v); },
+  setSpeakLevel: v => { speakLevel = Math.min(1, v); },
+  setSpeaking: s => { speaking = s; if (!s) speakLevel = 0; },
+  setState: t => {
+    const el = document.getElementById("status");
+    el.textContent = t;
+    el.classList.toggle("muted", t === "MUTED");
+  },
+  setUser: t => { document.getElementById("userline").textContent = t ? "“" + t + "”" : ""; },
+  setReply: t => { document.getElementById("replyline").textContent = t; },
+  setMuted: m => {
+    muted = m;
+    document.getElementById("mutebtn").classList.toggle("muted", m);
+    document.getElementById("mutebtn").textContent = m ? "UNMUTE" : "MUTE";
+    document.getElementById("meter").classList.toggle("muted", m);
+    document.getElementById("micicon").classList.toggle("muted", m);
+  },
+  setWeather: w => {
+    const box = document.getElementById("weather");
+    if (!w) { box.style.display = "none"; return; }
+    box.style.display = "block";
+    document.getElementById("wxmain").textContent =
+      `${w.glyph}  ${w.temp}°  ${w.condition.toUpperCase()}`;
+    let sub = `H ${w.hi}°  L ${w.lo}°`;
+    if (w.precip_prob >= 20) sub += `  ·  RAIN ${w.precip_prob}%`;
+    if (w.city) sub += `  ·  ${w.city.toUpperCase()}`;
+    document.getElementById("wxsub").textContent = sub;
+  },
+  setEmails: p => {
+    const list = document.getElementById("inboxlist");
+    list.textContent = "";
+    const hint = t => {
+      const d = document.createElement("div");
+      d.className = "mailhint"; d.textContent = t; list.appendChild(d);
+    };
+    if (!p || p.status === "unconfigured") { hint("GMAIL NOT LINKED — SEE README"); return; }
+    if (p.status === "error") { hint("INBOX UNAVAILABLE — " + (p.detail || "ERROR").toUpperCase()); return; }
+    if (!p.items.length) { hint("INBOX EMPTY"); return; }
+    for (const m of p.items) {
+      const row = document.createElement("div"); row.className = "mailrow";
+      const mk = (cls, text) => {
+        const s = document.createElement("span"); s.className = cls; s.textContent = text;
+        row.appendChild(s);
+      };
+      mk("mailwhen", m.when); mk("mailfrom", m.from); mk("mailsubj", m.subject);
+      list.appendChild(row);
+    }
+  },
+  setSystem: t => { document.getElementById("sysline").textContent = t; },
+  setHistory: entries => {
+    const list = document.getElementById("histlist");
+    list.textContent = "";
+    if (!entries || !entries.length) {
+      const d = document.createElement("div");
+      d.className = "histempty"; d.textContent = "NO CONVERSATIONS YET";
+      list.appendChild(d);
+      return;
+    }
+    for (const e of entries) appendHistRow(e, false);
+    list.scrollTop = list.scrollHeight;
+  },
+  addHistory: e => appendHistRow(e, true),
+};
+window.jarvisUI = jarvisUI;
+
+// ---------------- transcript panel ----------------
+const HIST_MAX_ROWS = 200;
+function histTime(ts) {
+  const d = new Date(ts * 1000), now = new Date();
+  let h = d.getHours() % 12; if (h === 0) h = 12;
+  const t = `${h}:${String(d.getMinutes()).padStart(2, "0")} ${d.getHours() < 12 ? "AM" : "PM"}`;
+  if (d.toDateString() === now.toDateString()) return t;
+  return `${MONTHS[d.getMonth()].slice(0, 3)} ${d.getDate()} · ${t}`;
+}
+function appendHistRow(e, scroll) {
+  const list = document.getElementById("histlist");
+  const empty = list.querySelector(".histempty");
+  if (empty) empty.remove();
+  const row = document.createElement("div");
+  row.className = "histrow " + (e.role === "user" ? "user" : "jarvis");
+  const meta = document.createElement("div");
+  meta.className = "histmeta";
+  const who = document.createElement("span");
+  who.className = e.role === "user" ? "who-user" : "who-jarvis";
+  who.textContent = e.role === "user" ? "YOU" : "JARVIS";
+  const when = document.createElement("span");
+  when.className = "when"; when.textContent = histTime(e.ts);
+  meta.appendChild(who); meta.appendChild(when);
+  const text = document.createElement("div");
+  text.className = "histtext"; text.textContent = e.text;
+  row.appendChild(meta); row.appendChild(text);
+  list.appendChild(row);
+  while (list.children.length > HIST_MAX_ROWS) list.firstChild.remove();
+  if (scroll) list.scrollTop = list.scrollHeight;
+}
+function toggleHistory() {
+  const panel = document.getElementById("histpanel");
+  const open = !panel.classList.contains("open");
+  panel.classList.toggle("open", open);
+  document.getElementById("histbtn").classList.toggle("open", open);
+  if (open) {
+    const list = document.getElementById("histlist");
+    list.scrollTop = list.scrollHeight;
+  }
+}
+
+// ---------------- clock (local, no Python needed) ----------------
+const DAYS = ["SUNDAY","MONDAY","TUESDAY","WEDNESDAY","THURSDAY","FRIDAY","SATURDAY"];
+const MONTHS = ["JANUARY","FEBRUARY","MARCH","APRIL","MAY","JUNE","JULY",
+                "AUGUST","SEPTEMBER","OCTOBER","NOVEMBER","DECEMBER"];
+function tickClock() {
+  const now = new Date();
+  let h = now.getHours() % 12; if (h === 0) h = 12;
+  const mm = String(now.getMinutes()).padStart(2, "0");
+  const ampm = now.getHours() < 12 ? "AM" : "PM";
+  document.getElementById("clock").innerHTML = `${h}:${mm} <span>${ampm}</span>`;
+  document.getElementById("dateline").textContent =
+    `${DAYS[now.getDay()]} · ${MONTHS[now.getMonth()]} ${now.getDate()}`;
+}
+setInterval(tickClock, 1000);
+tickClock();
+
+function toggleMute() {
+  if (window.pywebview && window.pywebview.api) {
+    window.pywebview.api.toggle_mute().then(m => jarvisUI.setMuted(m));
+  }
+}
+
+// Restart is two-click: first click arms for 3s, second click fires.
+let restartArmTimer = null;
+function restartJarvis() {
+  const btn = document.getElementById("restartbtn");
+  if (!btn.classList.contains("armed")) {
+    btn.classList.add("armed");
+    btn.textContent = "SURE?";
+    restartArmTimer = setTimeout(() => {
+      btn.classList.remove("armed");
+      btn.textContent = "RESTART";
+    }, 3000);
+    return;
+  }
+  clearTimeout(restartArmTimer);
+  btn.textContent = "RESTARTING…";
+  jarvisUI.setState("RESTARTING");
+  if (window.pywebview && window.pywebview.api) {
+    window.pywebview.api.restart();
+  }
+}
+window.addEventListener("keydown", e => {
+  if (e.code === "Space") { e.preventDefault(); toggleMute(); }
+  if (e.code === "KeyH") { e.preventDefault(); toggleHistory(); }
+});
+
+// ---------------- mic meter ----------------
+const meter = document.getElementById("meter");
+const BARS = 24;
+for (let i = 0; i < BARS; i++) {
+  const b = document.createElement("div");
+  b.className = "bar";
+  meter.appendChild(b);
+}
+const bars = [...meter.children];
+setInterval(() => {
+  const lvl = muted ? 0 : micLevel;
+  bars.forEach((b, i) => {
+    const center = Math.abs(i - (BARS - 1) / 2) / (BARS / 2); // 0 center -> 1 edge
+    const h = 4 + Math.max(0, (lvl * (1.15 - center) + (lvl > 0.02 ? Math.random() * 0.08 : 0))) * 30;
+    b.style.height = Math.min(34, h) + "px";
+  });
+}, 60);
+
+// ---------------- neural network canvas ----------------
+const canvas = document.getElementById("net");
+const ctx = canvas.getContext("2d");
+let W, H;
+function resize() { W = canvas.width = innerWidth; H = canvas.height = innerHeight; }
+window.addEventListener("resize", resize);
+resize();
+
+const N = 52, LINK_DIST = 170;
+const nodes = [];
+for (let i = 0; i < N; i++) {
+  nodes.push({
+    x: Math.random() * W, y: Math.random() * H,
+    vx: (Math.random() - 0.5) * 0.28, vy: (Math.random() - 0.5) * 0.28,
+    r: 1.6 + Math.random() * 1.8, phase: Math.random() * Math.PI * 2,
+  });
+}
+let sparks = [];   // pulses that travel along edges while Jarvis talks
+let energy = 0.15; // global excitement 0..1
+
+function frame(t) {
+  // energy eases toward target: calm at rest, driven by voice while speaking
+  const target = speaking ? 0.35 + speakLevel * 1.6 : 0.15 + micLevel * 0.5;
+  energy += (Math.min(1.4, target) - energy) * 0.12;
+
+  ctx.clearRect(0, 0, W, H);
+  const speedMul = 0.6 + energy * 2.2;
+
+  for (const n of nodes) {
+    n.x += n.vx * speedMul; n.y += n.vy * speedMul;
+    if (n.x < 0 || n.x > W) n.vx *= -1;
+    if (n.y < 0 || n.y > H) n.vy *= -1;
+  }
+
+  // edges
+  for (let i = 0; i < N; i++) {
+    for (let j = i + 1; j < N; j++) {
+      const a = nodes[i], b = nodes[j];
+      const dx = a.x - b.x, dy = a.y - b.y;
+      const d = Math.hypot(dx, dy);
+      if (d < LINK_DIST) {
+        const alpha = (1 - d / LINK_DIST) * (0.10 + energy * 0.35);
+        ctx.strokeStyle = `rgba(56, 232, 255, ${alpha})`;
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+
+        // spawn sparks on active edges while speaking
+        if (speaking && Math.random() < 0.0015 + speakLevel * 0.004) {
+          sparks.push({ a, b, p: 0, v: 0.02 + Math.random() * 0.03 });
+        }
+      }
+    }
+  }
+
+  // nodes with glow, gently pulsing
+  for (const n of nodes) {
+    const pulse = 1 + Math.sin(t / 900 + n.phase) * 0.25;
+    const r = n.r * pulse * (0.8 + energy * 0.9);
+    const g = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, r * 5);
+    g.addColorStop(0, `rgba(56, 232, 255, ${0.5 + energy * 0.4})`);
+    g.addColorStop(1, "rgba(56, 232, 255, 0)");
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(n.x, n.y, r * 5, 0, 7); ctx.fill();
+    ctx.fillStyle = `rgba(200, 250, 255, ${0.7 + energy * 0.3})`;
+    ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, 7); ctx.fill();
+  }
+
+  // sparks: bright golden pulses racing along edges
+  sparks = sparks.filter(s => s.p <= 1);
+  for (const s of sparks) {
+    s.p += s.v;
+    const x = s.a.x + (s.b.x - s.a.x) * s.p;
+    const y = s.a.y + (s.b.y - s.a.y) * s.p;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, 14);
+    g.addColorStop(0, "rgba(255, 200, 87, 0.9)");
+    g.addColorStop(1, "rgba(255, 200, 87, 0)");
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(x, y, 14, 0, 7); ctx.fill();
+  }
+
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

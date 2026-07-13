@@ -1,0 +1,11 @@
+anthropic>=0.116.0
+psutil>=6.0.0
+mcp>=1.28.0
+edge-tts>=7.0.0
+sounddevice>=0.5.0
+numpy>=2.0.0
+pywebview>=6.0.0
+openwakeword>=0.6.0
+onnxruntime>=1.27.0
+faster-whisper>=1.2.0
+requests>=2.31.0
