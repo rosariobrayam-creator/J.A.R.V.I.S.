@@ -138,11 +138,56 @@ Commands: type anything; `reset` clears conversation memory; `exit` quits.
 | Voice | Edge-TTS (free MS neural voices) |
 | UI | pywebview + canvas (neural net, mic meter, mute) |
 
-The voice is set in `jarvis/config.py` (`VOICE`, plus rate/pitch). The default,
-`en-US-AndrewMultilingualNeural`, is the most human-sounding free voice Edge-TTS
-offers — but it's American. For the classic British Jarvis, switch to
-`en-GB-RyanNeural`. Pre-rendered samples of the male candidates are in
-`voice_samples/` — double-click and pick by ear.
+The fallback voice is set in `jarvis/config.py` (`VOICE`, plus rate/pitch) —
+any Edge-TTS voice name works (`edge-tts --list-voices` shows them all).
+`voice_samples/` holds the files that matter: `jarvis.mp3` (the clone's
+reference — **required**, the server rebuilds the voice from it at startup),
+`jarvis-boot.wav` (boot sound), and `clone-sample.wav` (a demo of the cloned
+voice).
+
+### The movie voice (local clone, free)
+
+Jarvis's primary voice is a local **XTTS-v2 voice clone** of the film
+J.A.R.V.I.S., using `voice_samples/jarvis.mp3` (~25s of clean reference audio)
+as the timbre. It runs entirely on your GPU — no API, no cost.
+
+- **Setup** (one-time): the clone stack needs its own Python (3.13) because
+  the main app runs 3.14:
+
+  ```powershell
+  py -V:3.13 -m venv .venv-tts
+  .venv-tts\Scripts\python -m pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu128
+  .venv-tts\Scripts\python -m pip install coqui-tts "transformers<5"
+  ```
+
+  (`transformers` must stay below 5 — coqui-tts imports symbols that
+  transformers 5.x removed.)
+
+  First launch downloads the XTTS-v2 weights (~1.8 GB) automatically.
+- **How it runs**: `voice_main` auto-starts `voiceclone_server.py` inside
+  `.venv-tts` (port 8766). The server binds its port only once the model is
+  loaded, and it survives Jarvis restarts so the model loads once. Log:
+  `clone_server.log`.
+- **Fallback**: until the server is ready — and any time a synth fails — the
+  Edge-TTS voice (`VOICE` in config) speaks instead. Jarvis never goes silent
+  waiting on the clone stack. Expect the first minute or two after boot to be
+  the fallback voice while XTTS warms up.
+- **Startup sound**: boot plays the trimmed movie line
+  (`voice_samples/jarvis-boot.wav` — *"...importing all preferences from home
+  interface. Systems are now fully operational."*) instead of a spoken wake
+  line. `STARTUP_CLIP` in config; set it to `""` for the spoken line.
+- **Gaming note**: idle, XTTS holds ~2 GB of VRAM for instant replies — but
+  **game mode automatically frees it**: the model parks in system RAM and
+  borrows the GPU only for the ~3 seconds it's actually speaking (measured:
+  ~1.95 GB freed, replies go from 2.7s to 3.5s). GTA gets the whole card. If
+  you ever want the clone fully off, set `VOICE_CLONE = False` in config.
+- **Global mute hotkey**: press **Pause** to toggle mute from anywhere — game
+  focused, window minimized, doesn't matter (`MUTE_HOTKEY` in config; any
+  `keyboard`-library key name or combo works, e.g. `"f9"`, `"ctrl+m"`. A
+  laptop Fn key usually can't — it's handled in keyboard firmware and never
+  reaches Windows; the config comment shows how to test yours).
+- The reference clip is a movie sound bite cloned for **personal use on this
+  PC only** — don't redistribute generated audio of it.
 
 ## Current tools
 
@@ -164,6 +209,46 @@ offers — but it's American. For the classic British Jarvis, switch to
 | `restart_jarvis` | Jarvis relaunches himself in a fresh process |
 | `lock_pc` | Lock the workstation |
 | `power_control` | Sleep / shutdown / restart (asks for confirmation) |
+| `game_mode` | Gaming performance mode: Jarvis drops to background CPU priority and throttles UI updates |
+| `get_active_window` | What app/game is in the foreground right now |
+| `capture_screen` | Screenshot the screen so Jarvis can *see* it and answer "what am I looking at?" |
+| `review_recent_screen` | Replay Jarvis's short-term visual memory — the last ~3 minutes of screen, as timestamped frames |
+| `watch_screen` | Proactive watch: Jarvis speaks up on his own when the scene changes (cards dealt, result screens) |
+| `save_game_notes` | Persistent per-game notes: grind routines, goals, unlocks |
+| `read_game_notes` | Read back a game's saved notes/routines |
+
+### Gaming copilot
+
+Say "Jarvis, game mode" (or just tell him you're hopping on GTA) and he gets out
+of the game's way: below-normal CPU priority, minimal UI animation, and Whisper
+capped at `WHISPER_THREADS` cores (config). While you play he can answer
+questions about the game, check this week's bonuses on the web, look at your
+screen when you ask what you're seeing, and build a daily grind routine from
+what you tell him — saved per game in `game_data/` so it survives restarts.
+
+**Rolling replay (short-term visual memory):** while game mode is on, the
+screen is recorded into a RAM ring buffer — one frame every ~1.2s, the last
+3 minutes kept (~10 MB, negligible CPU; tune in `jarvis/config.py` under
+*Screen replay & watch*). Ask "Jarvis, what just happened?" or "what did the
+dealer have?" and he reviews the recent frames like he watched it live.
+Nothing is written to disk; the buffer clears when replay stops.
+
+**Watch mode (live call-outs):** say "Jarvis, watch the table and call my
+blackjack plays." He then monitors the replay for the scene changing and
+settling — cards being dealt — and automatically looks and speaks the play
+("Fourteen against a dealer six — stand, sir") without being asked. Call-outs
+run through a fast one-shot Haiku turn (`WATCH_MODEL` in config; still your
+Claude Code subscription, no API key) and take roughly 10–20 seconds from deal
+to speech — fine for casino blackjack's pace, not for split-second prompts.
+Built for mostly-static scenes (card tables, menus); it would trigger
+constantly during driving. Watch mode ends with game mode or on "stop
+watching".
+
+Screen capture note: games in *exclusive fullscreen* can screenshot as a black
+frame — use borderless windowed (the default in most modern titles).
+
+He also waits for `PAUSE_SECONDS` (default 3s) of silence before deciding
+you're done talking, so mid-sentence pauses don't cut you off.
 
 On the `claude-code` backend Jarvis can also **search the web himself**
 (Claude Code's built-in WebSearch/WebFetch) to answer questions with live

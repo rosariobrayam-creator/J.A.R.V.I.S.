@@ -25,7 +25,7 @@ import requests
 TEMP_UNIT = "fahrenheit"  # or "celsius"
 WEATHER_REFRESH_S = 600
 EMAIL_REFRESH_S = 180
-SYSTEM_REFRESH_S = 10
+SYSTEM_REFRESH_S = 3
 EMAIL_COUNT = 5
 
 _SECRETS_PATH = Path(__file__).resolve().parents[1] / "secrets.json"
@@ -210,7 +210,7 @@ class InfoHub:
         self,
         on_weather: Callable[[dict | None], None] | None = None,
         on_emails: Callable[[dict], None] | None = None,
-        on_system: Callable[[str], None] | None = None,
+        on_system: Callable[[dict], None] | None = None,
     ):
         self.weather: dict | None = None
         self.on_weather = on_weather or (lambda w: None)
@@ -243,4 +243,4 @@ class InfoHub:
             time.sleep(SYSTEM_REFRESH_S)
             cpu = psutil.cpu_percent(interval=None)
             mem = psutil.virtual_memory().percent
-            self.on_system(f"CPU {cpu:.0f}% · RAM {mem:.0f}%")
+            self.on_system({"cpu": round(cpu), "ram": round(mem)})

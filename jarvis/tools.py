@@ -21,6 +21,7 @@ from pathlib import Path
 
 import psutil
 
+from . import focuswatch, game, hearing, replay
 from .mail import check_email, open_email, read_email, search_email
 from .spotify import play_music
 
@@ -169,6 +170,7 @@ def _load_app_index(refresh: bool = False) -> list[tuple[str, str]]:
                 "Get-StartApps | ConvertTo-Json -Compress",
             ],
             capture_output=True, text=True, timeout=40,
+            creationflags=subprocess.CREATE_NO_WINDOW,
         )
         data = json.loads(proc.stdout)
         if isinstance(data, dict):
@@ -246,7 +248,8 @@ def set_timer(seconds: int, label: str = "Timer") -> str:
                 winsound.Beep(880, 300)
         except Exception:
             pass
-        print(f"\n\a[J.A.R.V.I.S.] ⏰ {label} — time's up!\n> ", end="", flush=True)
+        if sys.stdout is not None:  # windowless (pythonw) has no console
+            print(f"\n\a[J.A.R.V.I.S.] ⏰ {label} — time's up!\n> ", end="", flush=True)
 
     t = threading.Timer(seconds, _fire)
     t.daemon = True
@@ -281,6 +284,53 @@ def restart_jarvis(delay_seconds: int = 8) -> str:
     )
 
 
+def game_mode(action: str, game_title: str = "") -> str:
+    """Toggle gaming performance mode (lower Jarvis priority, lighter UI)."""
+    if action == "on":
+        return game.set_game_mode(True, game_title)
+    if action == "off":
+        return game.set_game_mode(False)
+    if action == "status":
+        if game.is_game_mode():
+            title = game.current_game()
+            return f"Game mode is on{f' for {title}' if title else ''}."
+        return "Game mode is off."
+    return f"Error: unknown action '{action}'."
+
+
+def watch_screen(action: str, focus: str = "") -> str:
+    """Proactive screen watch: Jarvis speaks up on his own — gaming-buddy
+    commentary by default, or steered by an optional focus."""
+    if action == "on":
+        return replay.set_watch(True, focus)
+    if action == "off":
+        return replay.set_watch(False)
+    if action == "status":
+        return replay.watch_status()
+    return f"Error: unknown action '{action}'."
+
+
+def get_active_window() -> str:
+    """Title + process of the window in the foreground — usually the game."""
+    try:
+        user32 = ctypes.windll.user32
+        hwnd = user32.GetForegroundWindow()
+        length = user32.GetWindowTextLengthW(hwnd)
+        buf = ctypes.create_unicode_buffer(length + 1)
+        user32.GetWindowTextW(hwnd, buf, length + 1)
+        pid = ctypes.c_ulong()
+        user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+        proc = ""
+        try:
+            proc = psutil.Process(pid.value).name()
+        except Exception:
+            pass
+        title = buf.value or "(untitled)"
+        return f"Active window: '{title}'" + (f" — process {proc}" if proc else "")
+    except Exception as e:
+        return f"Error: could not read the active window ({e})."
+
+
 def lock_pc() -> str:
     ctypes.windll.user32.LockWorkStation()
     return "Workstation locked."
@@ -294,10 +344,16 @@ def power_control(action: str) -> str:
         )
         return "Putting the PC to sleep."
     if action == "shutdown":
-        subprocess.Popen(["shutdown", "/s", "/t", "10"], shell=False)
+        subprocess.Popen(
+            ["shutdown", "/s", "/t", "10"], shell=False,
+            creationflags=subprocess.CREATE_NO_WINDOW,
+        )
         return "Shutting down in 10 seconds. Run 'shutdown /a' to abort."
     if action == "restart":
-        subprocess.Popen(["shutdown", "/r", "/t", "10"], shell=False)
+        subprocess.Popen(
+            ["shutdown", "/r", "/t", "10"], shell=False,
+            creationflags=subprocess.CREATE_NO_WINDOW,
+        )
         return "Restarting in 10 seconds. Run 'shutdown /a' to abort."
     return f"Error: unknown action '{action}'."
 
@@ -471,6 +527,126 @@ TOOL_SCHEMAS = [
         "input_schema": {"type": "object", "properties": {}, "required": []},
     },
     {
+        "name": "game_mode",
+        "description": "Toggle gaming performance mode. When on, Jarvis drops to background CPU priority and reduces UI updates so games run smoothly; voice still works normally. Turn it on when the user says they're starting a gaming session (or asks for game mode), off when they're done playing.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "action": {"type": "string", "enum": ["on", "off", "status"]},
+                "game_title": {
+                    "type": "string",
+                    "description": "Which game the user is playing, if known — e.g. 'GTA 5 Online'",
+                },
+            },
+            "required": ["action"],
+        },
+    },
+    {
+        "name": "watch_screen",
+        "description": (
+            "Proactive live screen watch. When on, the screen is recorded into a "
+            "rolling replay and Jarvis automatically looks and speaks short "
+            "call-outs without being asked — reacting to big on-screen moments "
+            "(a crash, a kill, a result screen), to scenes that change and "
+            "settle (a blackjack hand being dealt), and checking in during "
+            "sustained action like driving or firefights. Turn it on when the "
+            "user asks you to watch their gameplay, be their gaming buddy, "
+            "watch the table or dealer, or call their plays live; turn it off "
+            "when they're done. Each call-out needs a few seconds of analysis "
+            "before it's spoken."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "action": {"type": "string", "enum": ["on", "off", "status"]},
+                "focus": {
+                    "type": "string",
+                    "description": (
+                        "Optional for 'on': leave empty for general gaming-buddy "
+                        "commentary, or steer the watcher with what to look for "
+                        "and what to say, e.g. 'GTA Online casino blackjack: "
+                        "read my hand and the dealer upcard, call the "
+                        "basic-strategy play in one sentence'"
+                    ),
+                },
+            },
+            "required": ["action"],
+        },
+    },
+    {
+        "name": "hear_game_audio",
+        "description": (
+            "Hear the game. Transcribes the last several seconds of the PC's "
+            "audio output (WASAPI loopback) with local speech recognition — "
+            "game dialogue, mission briefings, in-game phone calls, squad "
+            "callouts. Use it when the user asks what a character just said, "
+            "what the mission wants, or anything they didn't catch by ear, or "
+            "when sound would answer better than the screen. Capture runs "
+            "while game mode is on. The transcript contains everything the "
+            "speakers played, so Jarvis's own recent replies and song lyrics "
+            "may appear — ignore those."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "seconds": {
+                    "type": "number",
+                    "description": "How far back to transcribe, 5-90 (default 20)",
+                }
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "get_focus_changes",
+        "description": (
+            "Diagnostic: list every window that took keyboard focus while "
+            "game mode was on, with timestamps, oldest first. A game only "
+            "receives inputs while its window holds focus, so when the user "
+            "says their game inputs stopped registering or their character "
+            "stopped responding, call this and report what grabbed focus at "
+            "that moment (a launched app, the browser, Spotify, an overlay, "
+            "a Windows popup)."
+        ),
+        "input_schema": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "get_active_window",
+        "description": "Get the title and process name of the window currently in the foreground. Use this to find out what game or app the user is in right now, e.g. before answering game questions or enabling game mode.",
+        "input_schema": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "save_game_notes",
+        "description": "Save persistent notes about a specific game — grind routines, the user's goals, what they own, unlocks, strategies that worked. One notes file per game, kept across restarts. Append by default; use replace to rewrite the file (e.g. when updating a routine).",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "game": {"type": "string", "description": "Game name, e.g. 'GTA 5 Online'"},
+                "content": {
+                    "type": "string",
+                    "description": "Markdown notes to store — routines, goals, facts the user told you",
+                },
+                "mode": {
+                    "type": "string",
+                    "enum": ["append", "replace"],
+                    "description": "append adds to existing notes (default); replace rewrites them",
+                },
+            },
+            "required": ["game", "content"],
+        },
+    },
+    {
+        "name": "read_game_notes",
+        "description": "Read the saved notes for a game (routines, goals, past info the user shared). Call with no game name to list which games have notes. Always check this before building or updating a routine for a game.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "game": {"type": "string", "description": "Game name; omit to list all games with notes"}
+            },
+            "required": [],
+        },
+    },
+    {
         "name": "lock_pc",
         "description": "Lock the Windows workstation immediately. Call this when the user asks to lock the PC or screen.",
         "input_schema": {"type": "object", "properties": {}, "required": []},
@@ -505,6 +681,13 @@ TOOL_FUNCTIONS = {
     "restart_jarvis": restart_jarvis,
     "lock_pc": lock_pc,
     "power_control": power_control,
+    "game_mode": game_mode,
+    "watch_screen": watch_screen,
+    "get_active_window": get_active_window,
+    "hear_game_audio": hearing.hear_recent,
+    "get_focus_changes": focuswatch.get_focus_changes,
+    "save_game_notes": game.save_game_notes,
+    "read_game_notes": game.read_game_notes,
 }
 
 

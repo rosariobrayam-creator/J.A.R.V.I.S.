@@ -1,4 +1,29 @@
+# --- Credentials -------------------------------------------------------------
 secrets.json
+secrets*.json
+.env
+.env.*
+
+# --- Personal data Jarvis writes about you -----------------------------------
+# history.jsonl is the full transcript of every voice/text exchange.
+# game_data/ holds the notes the brain keeps on your habits and play style.
 history.jsonl
-__pycache__
+game_data/
+
+# --- Logs (contain local absolute paths, i.e. your Windows username) ---------
+*.log
+
+# --- Voice clone reference audio ---------------------------------------------
+# Movie sound bites, cloned for personal use on this PC only — not ours to
+# redistribute. Supply your own reference clip; see README.
+voice_samples/*.mp3
+voice_samples/*.wav
+
+# --- Python ------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+.venv/
+.venv-*/
+
+# --- Tooling -----------------------------------------------------------------
 .claude

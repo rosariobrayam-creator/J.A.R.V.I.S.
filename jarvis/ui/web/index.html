@@ -5,122 +5,202 @@
 <title>J.A.R.V.I.S.</title>
 <style>
   :root {
-    --cyan: #38e8ff;
-    --cyan-dim: rgba(56, 232, 255, 0.35);
+    --cyan: #4fd8f0;
+    --cyan-bright: #8beeff;
+    --cyan-dim: rgba(79, 216, 240, 0.35);
+    --steel: #8fb7cc;
+    --steel-dim: rgba(143, 183, 204, 0.55);
     --gold: #ffc857;
     --red: #ff4d5a;
-    --bg: #05080f;
+    --line: rgba(110, 170, 200, 0.22);
+    --line-bright: rgba(79, 216, 240, 0.45);
+    --panel-bg: rgba(7, 18, 30, 0.72);
+    --head-bg: rgba(79, 216, 240, 0.08);
+    --bg: #050d16;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
-  html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg); font-family: "Segoe UI", system-ui, sans-serif; }
-  #net { position: absolute; inset: 0; }
+  html, body {
+    width: 100%; height: 100%; overflow: hidden;
+    background:
+      radial-gradient(ellipse at 50% 42%, rgba(20, 60, 90, 0.30), transparent 62%),
+      linear-gradient(180deg, #061019 0%, #050d16 55%, #04090f 100%);
+    font-family: "Segoe UI", system-ui, sans-serif;
+  }
+  /* blueprint grid + fine scanlines, all static CSS: zero runtime cost */
+  #grid {
+    position: absolute; inset: 0; pointer-events: none; z-index: 0;
+    background:
+      repeating-linear-gradient(0deg, transparent 0 47px, rgba(110,170,200,.045) 47px 48px),
+      repeating-linear-gradient(90deg, transparent 0 47px, rgba(110,170,200,.045) 47px 48px),
+      repeating-linear-gradient(0deg, transparent 0 191px, rgba(110,170,200,.07) 191px 192px),
+      repeating-linear-gradient(90deg, transparent 0 191px, rgba(110,170,200,.07) 191px 192px);
+    mask-image: radial-gradient(ellipse at 50% 45%, rgba(0,0,0,.85), rgba(0,0,0,.3) 75%);
+  }
+  #vignette {
+    position: absolute; inset: 0; pointer-events: none; z-index: 4;
+    background: radial-gradient(ellipse at center, transparent 60%, rgba(2, 6, 10, 0.55));
+  }
+  #net { position: absolute; inset: 0; z-index: 1; }
 
+  /* ---------- panel chrome (shared) ---------- */
+  .panel {
+    background: var(--panel-bg);
+    border: 1px solid var(--line);
+    position: relative;
+    backdrop-filter: blur(2px);
+  }
+  .panel::before, .panel::after {
+    content: ""; position: absolute; width: 9px; height: 9px; pointer-events: none;
+  }
+  .panel::before { top: -1px; left: -1px; border-top: 1px solid var(--line-bright); border-left: 1px solid var(--line-bright); }
+  .panel::after  { bottom: -1px; right: -1px; border-bottom: 1px solid var(--line-bright); border-right: 1px solid var(--line-bright); }
+  .phead {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--head-bg);
+    border-bottom: 1px solid var(--line);
+    padding: 5px 9px;
+    color: var(--cyan); font-size: 9px; letter-spacing: 0.35em; font-weight: 600;
+  }
+  .phead .notch { width: 3px; height: 9px; background: var(--cyan); box-shadow: 0 0 6px var(--cyan-dim); flex: none; }
+  .phead .fill { flex: 1; }
+  .phead .tag {
+    color: rgba(143,183,204,.5); font-size: 8px; letter-spacing: .2em; font-weight: 400;
+    font-variant-numeric: tabular-nums;
+  }
+  .pbody { padding: 9px 10px 10px; }
+
+  /* ---------- top ---------- */
   #hud {
     position: absolute; inset: 0; display: flex; flex-direction: column;
     justify-content: space-between; pointer-events: none; z-index: 2;
   }
-  #toprow { display: flex; justify-content: space-between; align-items: flex-start; padding: 18px 24px; }
-  #title {
-    color: var(--cyan); letter-spacing: 0.55em;
-    font-size: 15px; font-weight: 600; text-shadow: 0 0 12px var(--cyan-dim);
+  #toprow { position: relative; display: flex; justify-content: flex-end; align-items: flex-start; padding: 16px 22px; }
+  #topstrip {
+    position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, transparent, var(--cyan-dim) 20%, var(--cyan-dim) 80%, transparent);
   }
-  #title small { display:block; letter-spacing: 0.18em; font-size: 9px; color: rgba(160,190,210,.55); margin-top: 4px; }
+  #title { position: absolute; left: 0; right: 0; top: 20px; text-align: center; pointer-events: none; }
+  #titlerow { display: flex; align-items: center; justify-content: center; gap: 18px; }
+  .tline {
+    height: 1px; width: min(120px, 13vw); position: relative;
+    background: linear-gradient(90deg, transparent, var(--cyan));
+    box-shadow: 0 0 8px var(--cyan-dim);
+  }
+  .tline::after {
+    content: ""; position: absolute; top: -2px; width: 5px; height: 5px;
+    border: 1px solid var(--cyan); transform: rotate(45deg);
+  }
+  .tline.l::after { right: 0; }
+  .tline.r { background: linear-gradient(270deg, transparent, var(--cyan)); }
+  .tline.r::after { left: 0; }
+  #titletext {
+    color: var(--cyan-bright); font-size: 24px; font-weight: 600;
+    letter-spacing: 0.55em; margin-right: -0.55em;
+    text-shadow: 0 0 16px var(--cyan-dim), 0 0 44px rgba(79,216,240,.25);
+  }
+  #title small {
+    display: block; letter-spacing: 0.36em; margin-right: -0.36em;
+    font-size: 8.5px; color: var(--steel-dim); margin-top: 7px;
+  }
 
-  #topright { text-align: right; }
+  #topright { text-align: right; pointer-events: none; }
   #clock {
-    color: var(--cyan); font-size: 30px; font-weight: 300; letter-spacing: 0.12em;
+    color: var(--cyan-bright); font-size: 30px; font-weight: 300; letter-spacing: 0.12em;
     text-shadow: 0 0 14px var(--cyan-dim); font-variant-numeric: tabular-nums;
   }
-  #clock span { font-size: 14px; letter-spacing: 0.2em; opacity: .8; }
-  #dateline { color: rgba(160,190,210,.6); font-size: 10px; letter-spacing: 0.32em; margin-top: 5px; }
-  #weather { margin-top: 14px; display: none; }
-  #wxmain { color: var(--cyan); font-size: 14px; letter-spacing: 0.14em; text-shadow: 0 0 10px var(--cyan-dim); }
-  #wxsub { color: rgba(160,190,210,.6); font-size: 10px; letter-spacing: 0.2em; margin-top: 4px; }
+  #clock span { font-size: 13px; letter-spacing: 0.2em; opacity: .8; }
+  #dateline { color: var(--steel-dim); font-size: 9.5px; letter-spacing: 0.32em; margin-top: 5px; }
+  #weather { margin-top: 12px; display: none; }
+  #wxmain { color: var(--cyan); font-size: 13px; letter-spacing: 0.14em; text-shadow: 0 0 10px var(--cyan-dim); }
+  #wxsub { color: var(--steel-dim); font-size: 9.5px; letter-spacing: 0.2em; margin-top: 4px; }
 
-  #inbox {
-    position: absolute; left: 24px; bottom: 96px; width: 350px; z-index: 2;
-    pointer-events: none;
-  }
-  #inboxtitle { color: rgba(160,190,210,.55); font-size: 10px; letter-spacing: 0.35em; margin-bottom: 8px; }
-  .mailrow {
-    display: flex; gap: 9px; font-size: 11px; margin-bottom: 6px;
-    color: rgba(190,210,225,.75); white-space: nowrap; overflow: hidden; align-items: baseline;
-  }
-  .mailwhen { color: var(--cyan); opacity: .75; flex: none; width: 40px; font-size: 10px; }
-  .mailfrom { color: var(--gold); flex: none; max-width: 110px; overflow: hidden; text-overflow: ellipsis; }
-  .mailsubj { overflow: hidden; text-overflow: ellipsis; opacity: .8; }
-  .mailhint { color: rgba(140,160,180,.4); font-size: 10px; letter-spacing: 0.15em; }
-
-  #sysline {
-    position: absolute; right: 24px; bottom: 96px; z-index: 2; text-align: right;
-    color: rgba(160,190,210,.45); font-size: 10px; letter-spacing: 0.25em;
-  }
-
+  /* ---------- center ---------- */
   #center { text-align: center; }
   #status {
-    color: var(--cyan); font-size: 13px; letter-spacing: 0.4em; font-weight: 600;
-    text-shadow: 0 0 14px var(--cyan-dim); transition: color .3s;
+    display: inline-block;
+    color: var(--cyan); font-size: 12px; letter-spacing: 0.42em; font-weight: 600;
+    text-shadow: 0 0 14px var(--cyan-dim); transition: color .3s, border-color .3s;
+    border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+    padding: 6px 26px 6px calc(26px + 0.42em);
   }
-  #status.muted { color: var(--red); text-shadow: 0 0 14px rgba(255,77,90,.4); }
-  #transcript { margin-top: 14px; min-height: 58px; }
+  #status.muted { color: var(--red); border-color: rgba(255,77,90,.35); text-shadow: 0 0 14px rgba(255,77,90,.4); }
+  #transcript { margin-top: 12px; min-height: 58px; }
   #userline { color: rgba(190, 210, 225, 0.75); font-size: 13px; font-style: italic; }
   #replyline { color: var(--gold); font-size: 14px; margin-top: 6px; max-width: 640px;
                margin-left: auto; margin-right: auto; line-height: 1.45;
                text-shadow: 0 0 10px rgba(255,200,87,.25); }
 
+  /* ---------- bottom panels ---------- */
+  #inbox { position: absolute; left: 22px; bottom: 96px; width: 360px; z-index: 2; pointer-events: none; }
+  .mailrow {
+    display: flex; gap: 9px; font-size: 11px; margin-bottom: 6px;
+    color: rgba(190,210,225,.75); white-space: nowrap; overflow: hidden; align-items: baseline;
+  }
+  .mailrow:last-child { margin-bottom: 0; }
+  .mailwhen { color: var(--cyan); opacity: .75; flex: none; width: 40px; font-size: 10px; font-variant-numeric: tabular-nums; }
+  .mailfrom { color: var(--gold); flex: none; max-width: 110px; overflow: hidden; text-overflow: ellipsis; }
+  .mailsubj { overflow: hidden; text-overflow: ellipsis; opacity: .8; }
+  .mailhint { color: rgba(140,160,180,.4); font-size: 10px; letter-spacing: 0.15em; }
+
+  #syspanel { position: absolute; right: 22px; bottom: 96px; z-index: 2; width: 210px; }
+  .sysrow { display: flex; align-items: center; gap: 8px; margin-top: 7px; }
+  .sysrow:first-child { margin-top: 0; }
+  .syslabel { color: var(--steel); font-size: 10px; letter-spacing: 0.18em; width: 30px; flex: none; }
+  .syschart { flex: 1; height: 26px; display: block; min-width: 0; }
+  .sysval {
+    font-size: 11px; width: 36px; text-align: right; flex: none;
+    font-variant-numeric: tabular-nums; color: var(--cyan);
+  }
+
+  /* ---------- bottom bar ---------- */
   #bottombar {
-    display: flex; align-items: center; justify-content: center; gap: 26px;
-    padding: 22px; pointer-events: auto;
+    display: flex; align-items: center; justify-content: center; gap: 24px;
+    padding: 20px 22px 24px; pointer-events: auto; position: relative;
+  }
+  #bottombar::before {
+    content: ""; position: absolute; top: 0; left: 15%; right: 15%; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--line) 30%, var(--line) 70%, transparent);
   }
   #meter { display: flex; align-items: flex-end; gap: 3px; height: 34px; }
   #meter .bar {
-    width: 5px; height: 4px; border-radius: 2px; background: var(--cyan);
+    width: 4px; height: 4px; background: var(--cyan);
     box-shadow: 0 0 6px var(--cyan-dim); transition: height 0.06s linear, background .3s;
   }
   #meter.muted .bar { background: #3a3f4d; box-shadow: none; }
   #micicon { color: var(--cyan); opacity: .85; }
   #micicon.muted { color: #3a3f4d; }
 
-  #mutebtn {
-    pointer-events: auto; cursor: pointer; border: 1px solid var(--cyan-dim);
-    background: rgba(56,232,255,0.06); color: var(--cyan);
-    font-size: 12px; letter-spacing: 0.25em; padding: 10px 26px; border-radius: 999px;
+  .hudbtn {
+    pointer-events: auto; cursor: pointer;
+    border: 1px solid var(--line-bright);
+    background: linear-gradient(180deg, rgba(79,216,240,0.10), rgba(79,216,240,0.03));
+    color: var(--cyan);
+    font-size: 11px; letter-spacing: 0.28em; font-weight: 600;
+    padding: 10px 24px 10px calc(24px + 0.28em);
     transition: all .25s; font-family: inherit;
+    clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
   }
-  #mutebtn:hover { background: rgba(56,232,255,0.16); box-shadow: 0 0 16px var(--cyan-dim); }
+  .hudbtn:hover { background: rgba(79,216,240,0.18); box-shadow: 0 0 16px var(--cyan-dim); }
   #mutebtn.muted {
-    border-color: var(--red); color: var(--red); background: rgba(255,77,90,0.10);
-    box-shadow: 0 0 18px rgba(255,77,90,0.35);
+    border-color: var(--red); color: var(--red);
+    background: rgba(255,77,90,0.10); box-shadow: 0 0 18px rgba(255,77,90,0.35);
   }
-  #hint { position: absolute; bottom: 6px; width: 100%; text-align: center;
-          color: rgba(140,160,180,.35); font-size: 10px; letter-spacing: .15em; }
-
-  #histbtn {
-    pointer-events: auto; cursor: pointer; border: 1px solid var(--cyan-dim);
-    background: rgba(56,232,255,0.06); color: var(--cyan);
-    font-size: 12px; letter-spacing: 0.25em; padding: 10px 22px; border-radius: 999px;
-    transition: all .25s; font-family: inherit;
-  }
-  #histbtn:hover { background: rgba(56,232,255,0.16); box-shadow: 0 0 16px var(--cyan-dim); }
-  #histbtn.open { background: rgba(56,232,255,0.2); box-shadow: 0 0 18px var(--cyan-dim); }
-
-  #restartbtn {
-    pointer-events: auto; cursor: pointer; border: 1px solid rgba(255,200,87,.4);
-    background: rgba(255,200,87,0.06); color: var(--gold);
-    font-size: 12px; letter-spacing: 0.25em; padding: 10px 22px; border-radius: 999px;
-    transition: all .25s; font-family: inherit;
-  }
+  #histbtn.open { background: rgba(79,216,240,0.22); box-shadow: 0 0 18px var(--cyan-dim); }
+  #restartbtn { border-color: rgba(255,200,87,.4); color: var(--gold);
+                background: linear-gradient(180deg, rgba(255,200,87,0.09), rgba(255,200,87,0.02)); }
   #restartbtn:hover { background: rgba(255,200,87,0.16); box-shadow: 0 0 16px rgba(255,200,87,.35); }
   #restartbtn.armed { border-color: var(--red); color: var(--red); background: rgba(255,77,90,0.10); }
 
+  #hint { position: absolute; bottom: 5px; width: 100%; text-align: center;
+          color: rgba(140,160,180,.32); font-size: 9.5px; letter-spacing: .15em; z-index: 2; }
+
+  /* ---------- transcript panel ---------- */
   #histpanel {
-    position: absolute; right: 24px; top: 120px; bottom: 150px; width: 330px;
+    position: absolute; right: 22px; top: 116px; bottom: 208px; width: 340px;
     z-index: 3; display: none; flex-direction: column; pointer-events: auto;
-    background: rgba(5,10,20,0.82); border: 1px solid var(--cyan-dim);
-    border-radius: 10px; padding: 14px; backdrop-filter: blur(3px);
   }
   #histpanel.open { display: flex; }
-  #histtitle { color: rgba(160,190,210,.55); font-size: 10px; letter-spacing: .35em; margin-bottom: 10px; flex: none; }
+  #histpanel .pbody { overflow: hidden; flex: 1; display: flex; flex-direction: column; }
   #histlist { overflow-y: auto; flex: 1; scrollbar-width: thin; scrollbar-color: var(--cyan-dim) transparent; }
   .histrow { margin-bottom: 10px; font-size: 11.5px; line-height: 1.4; }
   .histmeta { font-size: 9px; letter-spacing: .2em; margin-bottom: 2px; }
@@ -130,14 +210,34 @@
   .histrow.user .histtext { color: rgba(190,210,225,.8); font-style: italic; }
   .histrow.jarvis .histtext { color: rgba(255,214,130,.85); }
   .histempty { color: rgba(140,160,180,.4); font-size: 10px; letter-spacing: .15em; }
+
+  /* decorative side rulers, static */
+  .ruler {
+    position: absolute; top: 18%; bottom: 24%; width: 6px; z-index: 0; pointer-events: none;
+    background: repeating-linear-gradient(180deg, var(--line) 0 1px, transparent 1px 14px);
+  }
+  .ruler.l { left: 10px; border-left: 1px solid var(--line); }
+  .ruler.r { right: 10px; border-right: 1px solid var(--line); }
 </style>
 </head>
 <body>
+<div id="grid"></div>
+<div class="ruler l"></div>
+<div class="ruler r"></div>
 <canvas id="net"></canvas>
+<div id="vignette"></div>
 
 <div id="hud">
   <div id="toprow">
-    <div id="title">J.A.R.V.I.S.<small>JUST A RATHER VERY INTELLIGENT SYSTEM</small></div>
+    <div id="topstrip"></div>
+    <div id="title">
+      <div id="titlerow">
+        <span class="tline l"></span>
+        <span id="titletext">J.A.R.V.I.S.</span>
+        <span class="tline r"></span>
+      </div>
+      <small>JUST A RATHER VERY INTELLIGENT SYSTEM</small>
+    </div>
     <div id="topright">
       <div id="clock">--:--</div>
       <div id="dateline"></div>
@@ -159,21 +259,43 @@
       <path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/>
     </svg>
     <div id="meter"></div>
-    <button id="mutebtn" onclick="toggleMute()">MUTE</button>
-    <button id="histbtn" onclick="toggleHistory()">LOG</button>
-    <button id="restartbtn" onclick="restartJarvis()">RESTART</button>
+    <button id="mutebtn" class="hudbtn" onclick="toggleMute()">MUTE</button>
+    <button id="histbtn" class="hudbtn" onclick="toggleHistory()">LOG</button>
+    <button id="restartbtn" class="hudbtn" onclick="restartJarvis()">RESTART</button>
   </div>
 </div>
-<div id="histpanel">
-  <div id="histtitle">TRANSCRIPT</div>
-  <div id="histlist"><div class="histempty">NO CONVERSATIONS YET</div></div>
+
+<div id="histpanel" class="panel">
+  <div class="phead"><span class="notch"></span>TRANSCRIPT<span class="fill"></span><span class="tag">LOG // 30D</span></div>
+  <div class="pbody">
+    <div id="histlist"><div class="histempty">NO CONVERSATIONS YET</div></div>
+  </div>
 </div>
-<div id="inbox">
-  <div id="inboxtitle">INBOX</div>
-  <div id="inboxlist"><div class="mailhint">CONNECTING…</div></div>
+
+<div id="inbox" class="panel">
+  <div class="phead"><span class="notch"></span>INBOX<span class="fill"></span><span class="tag">GMAIL // IMAP</span></div>
+  <div class="pbody">
+    <div id="inboxlist"><div class="mailhint">CONNECTING…</div></div>
+  </div>
 </div>
-<div id="sysline"></div>
-<div id="hint">SPACE = MUTE &nbsp;·&nbsp; H = TRANSCRIPT &nbsp;·&nbsp; SAY "HEY JARVIS" TO WAKE OR INTERRUPT &nbsp;·&nbsp; "STAND DOWN" TO CLOSE</div>
+
+<div id="syspanel" class="panel">
+  <div class="phead"><span class="notch"></span>SYSTEM<span class="fill"></span><span class="tag">LIVE</span></div>
+  <div class="pbody">
+    <div class="sysrow">
+      <span class="syslabel">CPU</span>
+      <canvas class="syschart" id="cpuchart"></canvas>
+      <span class="sysval" id="cpuval">--</span>
+    </div>
+    <div class="sysrow">
+      <span class="syslabel">RAM</span>
+      <canvas class="syschart" id="ramchart"></canvas>
+      <span class="sysval" id="ramval">--</span>
+    </div>
+  </div>
+</div>
+
+<div id="hint">M+N = MUTE (WORKS IN-GAME) &nbsp;·&nbsp; SPACE = MUTE &nbsp;·&nbsp; H = TRANSCRIPT &nbsp;·&nbsp; SAY "HEY JARVIS" TO WAKE OR INTERRUPT &nbsp;·&nbsp; "STAND DOWN" TO CLOSE</div>
 
 <script>
 // ---------------- state pushed from Python ----------------
@@ -228,7 +350,20 @@ const jarvisUI = {
       list.appendChild(row);
     }
   },
-  setSystem: t => { document.getElementById("sysline").textContent = t; },
+  setSystem: p => {
+    if (!p || typeof p !== "object") return;
+    sysHist.cpu.push(p.cpu); sysHist.ram.push(p.ram);
+    if (sysHist.cpu.length > SYS_MAX) { sysHist.cpu.shift(); sysHist.ram.shift(); }
+    const setVal = (id, v, base) => {
+      const el = document.getElementById(id);
+      el.textContent = Math.round(v) + "%";
+      el.style.color = v >= 85 ? "var(--red)" : base;
+    };
+    setVal("cpuval", p.cpu, "var(--cyan)");
+    setVal("ramval", p.ram, "var(--gold)");
+    drawSpark(document.getElementById("cpuchart"), sysHist.cpu, "79, 216, 240");
+    drawSpark(document.getElementById("ramchart"), sysHist.ram, "255, 200, 87");
+  },
   setHistory: entries => {
     const list = document.getElementById("histlist");
     list.textContent = "";
@@ -244,6 +379,34 @@ const jarvisUI = {
   addHistory: e => appendHistRow(e, true),
 };
 window.jarvisUI = jarvisUI;
+
+// ---------------- system stats sparklines ----------------
+const SYS_MAX = 60;                    // 60 samples ≈ 3 min of history
+const sysHist = { cpu: [], ram: [] };
+function drawSpark(cv, hist, rgb) {
+  const dpr = window.devicePixelRatio || 1;
+  const w = cv.clientWidth * dpr, h = cv.clientHeight * dpr;
+  if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+  const c = cv.getContext("2d");
+  c.clearRect(0, 0, w, h);
+  // faint 50% gridline
+  c.strokeStyle = "rgba(160,190,210,.14)"; c.lineWidth = 1;
+  c.beginPath(); c.moveTo(0, h / 2); c.lineTo(w, h / 2); c.stroke();
+  if (hist.length < 2) return;
+  const step = w / (SYS_MAX - 1);
+  const x0 = w - (hist.length - 1) * step;   // right-aligned: newest at right edge
+  const yOf = v => h - 1.5 - (Math.min(100, v) / 100) * (h - 3);
+  c.beginPath();
+  hist.forEach((v, i) => {
+    const x = x0 + i * step, y = yOf(v);
+    i ? c.lineTo(x, y) : c.moveTo(x, y);
+  });
+  c.strokeStyle = `rgba(${rgb}, .9)`; c.lineWidth = 1.5 * dpr;
+  c.lineJoin = "round"; c.stroke();
+  // soft fill under the line
+  c.lineTo(w, h); c.lineTo(x0, h); c.closePath();
+  c.fillStyle = `rgba(${rgb}, .12)`; c.fill();
+}
 
 // ---------------- transcript panel ----------------
 const HIST_MAX_ROWS = 200;
@@ -351,70 +514,248 @@ setInterval(() => {
   });
 }, 60);
 
-// ---------------- neural network canvas ----------------
+// ---------------- neural core canvas ----------------
+// The neural dot sphere (Fibonacci sphere + connections) wrapped in the
+// classic J.A.R.V.I.S. concentric ring chrome: tick ring, segmented arc
+// rings counter-rotating, and a gold accent arc. Ring speed and brightness
+// follow the same energy signal as the sphere, so the whole core reacts to
+// the voice. Everything is projected from the live window size each frame.
 const canvas = document.getElementById("net");
 const ctx = canvas.getContext("2d");
-let W, H;
-function resize() { W = canvas.width = innerWidth; H = canvas.height = innerHeight; }
+let W, H, DPR;
+function resize() {
+  DPR = window.devicePixelRatio || 1;
+  W = innerWidth; H = innerHeight;
+  canvas.width = W * DPR; canvas.height = H * DPR;
+  canvas.style.width = W + "px"; canvas.style.height = H + "px";
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
 window.addEventListener("resize", resize);
 resize();
 
-const N = 52, LINK_DIST = 170;
+const N = 420;
 const nodes = [];
+// Fibonacci sphere: evenly spread home positions. Each dot then wanders on
+// its own little orbit around home (individual speed, direction, amplitude)
+// so the surface swarms in all directions while staying spherical.
+const GA = Math.PI * (3 - Math.sqrt(5)); // golden angle
 for (let i = 0; i < N; i++) {
+  const y = 1 - (i / (N - 1)) * 2;           // 1 .. -1
+  const rad = Math.sqrt(1 - y * y);
+  const th = GA * i;
+  const ux = Math.cos(th) * rad, uy = y, uz = Math.sin(th) * rad;
+  // tangent basis at the home point (t1 ⊥ u, t2 ⊥ both)
+  let ax = 0, ay = 1, az = 0;
+  if (Math.abs(uy) > 0.9) { ax = 1; ay = 0; }
+  let t1x = uy * az - uz * ay, t1y = uz * ax - ux * az, t1z = ux * ay - uy * ax;
+  const t1l = Math.hypot(t1x, t1y, t1z);
+  t1x /= t1l; t1y /= t1l; t1z /= t1l;
+  const t2x = uy * t1z - uz * t1y, t2y = uz * t1x - ux * t1z, t2z = ux * t1y - uy * t1x;
   nodes.push({
-    x: Math.random() * W, y: Math.random() * H,
-    vx: (Math.random() - 0.5) * 0.28, vy: (Math.random() - 0.5) * 0.28,
-    r: 1.6 + Math.random() * 1.8, phase: Math.random() * Math.PI * 2,
+    ux, uy, uz, t1x, t1y, t1z, t2x, t2y, t2z,
+    amp: 0.05 + Math.random() * 0.09,        // wander radius (radians-ish)
+    w1: (0.4 + Math.random() * 0.9) * (Math.random() < 0.5 ? -1 : 1),
+    w2: (0.4 + Math.random() * 0.9) * (Math.random() < 0.5 ? -1 : 1),
+    p1: Math.random() * Math.PI * 2, p2: Math.random() * Math.PI * 2,
+    phase: Math.random() * Math.PI * 2,
+    x: 0, y: 0, z: 0,                        // filled in per frame
   });
 }
+
+// Precompute neighbor pairs once from home positions — angular distance on
+// the sphere is rotation-invariant, and wander is small enough that home
+// neighbors stay visually adjacent (lines stretch a little, which reads
+// as the mesh flexing).
+const edges = [];
+const COS_MAX = 0.9715; // ~13.7° apart → ~6 neighbors per node
+for (let i = 0; i < N; i++) {
+  for (let j = i + 1; j < N; j++) {
+    const a = nodes[i], b = nodes[j];
+    if (a.ux * b.ux + a.uy * b.uy + a.uz * b.uz > COS_MAX) edges.push([a, b]);
+  }
+}
+// depth buckets so ~1200 edges stroke as a handful of batched paths
+const EDGE_BUCKETS = 8;
+const edgeBuckets = Array.from({ length: EDGE_BUCKETS }, () => []);
+
+// pre-rendered glow sprite (drawImage is far cheaper than a gradient per dot)
+const glowSprite = document.createElement("canvas");
+glowSprite.width = glowSprite.height = 64;
+{
+  const g = glowSprite.getContext("2d");
+  const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  grad.addColorStop(0, "rgba(79, 216, 240, 1)");
+  grad.addColorStop(0.4, "rgba(79, 216, 240, 0.35)");
+  grad.addColorStop(1, "rgba(79, 216, 240, 0)");
+  g.fillStyle = grad; g.fillRect(0, 0, 64, 64);
+}
+
+// ring segment layouts, fixed at load so the chrome doesn't shimmer randomly
+const SEGS_OUT = [];  // [startAngle, sweep]
+{
+  let a = 0;
+  while (a < Math.PI * 2 - 0.1) {
+    const sweep = 0.25 + Math.random() * 0.75;
+    SEGS_OUT.push([a, sweep * 0.82]);
+    a += sweep + 0.10 + Math.random() * 0.22;
+  }
+}
+const SEGS_IN = [];
+{
+  let a = 0.3;
+  while (a < Math.PI * 2 - 0.1) {
+    const sweep = 0.5 + Math.random() * 1.1;
+    SEGS_IN.push([a, sweep * 0.9]);
+    a += sweep + 0.35 + Math.random() * 0.5;
+  }
+}
+
+function drawRings(cx, cy, R, t, energy) {
+  const glow = 0.35 + energy * 0.5;
+
+  // tick ring — 72 radial ticks, every 6th one long
+  const rT = R * 1.22;
+  ctx.strokeStyle = `rgba(79, 216, 240, ${0.16 + energy * 0.14})`;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let i = 0; i < 72; i++) {
+    const a = (i / 72) * Math.PI * 2;
+    const len = i % 6 === 0 ? 7 : 3;
+    ctx.moveTo(cx + Math.cos(a) * rT, cy + Math.sin(a) * rT);
+    ctx.lineTo(cx + Math.cos(a) * (rT + len), cy + Math.sin(a) * (rT + len));
+  }
+  ctx.stroke();
+
+  // thin continuous baseline rings
+  ctx.strokeStyle = `rgba(110, 170, 200, ${0.10 + energy * 0.06})`;
+  ctx.beginPath(); ctx.arc(cx, cy, rT, 0, 7); ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx, cy, R * 1.34, 0, 7); ctx.stroke();
+
+  // outer segmented ring, rotating slowly clockwise
+  const rotOut = t / 24000 * Math.PI * 2 * (1 + energy);
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = `rgba(79, 216, 240, ${0.28 * glow})`;
+  for (const [a0, sweep] of SEGS_OUT) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, R * 1.30, a0 + rotOut, a0 + rotOut + sweep);
+    ctx.stroke();
+  }
+
+  // inner segmented ring, counter-rotating, brighter
+  const rotIn = -t / 15000 * Math.PI * 2 * (1 + energy * 1.4);
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = `rgba(139, 238, 255, ${0.34 * glow})`;
+  for (const [a0, sweep] of SEGS_IN) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, R * 1.14, a0 + rotIn, a0 + rotIn + sweep);
+    ctx.stroke();
+  }
+
+  // gold accent arc — the ref's amber segment, sweeps with the voice
+  const goldA = t / 7000;
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = `rgba(255, 200, 87, ${0.30 + energy * 0.45})`;
+  ctx.beginPath();
+  ctx.arc(cx, cy, R * 1.14, goldA, goldA + 0.55 + energy * 0.7);
+  ctx.stroke();
+
+  // dashed micro-ring hugging the sphere
+  ctx.save();
+  ctx.setLineDash([2, 6]);
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = `rgba(79, 216, 240, ${0.20 + energy * 0.2})`;
+  ctx.beginPath(); ctx.arc(cx, cy, R * 1.06, -rotIn * 0.6, -rotIn * 0.6 + Math.PI * 2); ctx.stroke();
+  ctx.restore();
+}
+
 let sparks = [];   // pulses that travel along edges while Jarvis talks
 let energy = 0.15; // global excitement 0..1
+let rotY = 0, rotX = -0.35;
+let wanderT = 0, lastT = 0; // wander clock accelerates with energy
 
 function frame(t) {
+  const dt = lastT ? Math.min(50, t - lastT) : 16;
+  lastT = t;
+
   // energy eases toward target: calm at rest, driven by voice while speaking
   const target = speaking ? 0.35 + speakLevel * 1.6 : 0.15 + micLevel * 0.5;
   energy += (Math.min(1.4, target) - energy) * 0.12;
 
   ctx.clearRect(0, 0, W, H);
-  const speedMul = 0.6 + energy * 2.2;
+
+  const cx = W / 2, cy = H / 2;
+  const R = Math.min(W, H) * 0.27 * (1 + (speaking ? speakLevel * 0.10 : 0));
+  const FOV = 3.2; // perspective strength (in sphere radii)
+
+  drawRings(cx, cy, R, t, Math.min(1, energy));
+
+  rotY += 0.0016 * (1 + energy * 1.8) * (dt / 16.7);
+  rotX = -0.35 + Math.sin(t / 9000) * 0.12;
+  wanderT += (dt / 1000) * (0.7 + energy * 1.6);
+
+  const sy = Math.sin(rotY), cyw = Math.cos(rotY);
+  const sx = Math.sin(rotX), cxw = Math.cos(rotX);
 
   for (const n of nodes) {
-    n.x += n.vx * speedMul; n.y += n.vy * speedMul;
-    if (n.x < 0 || n.x > W) n.vx *= -1;
-    if (n.y < 0 || n.y > H) n.vy *= -1;
+    // per-dot orbit around its home point, plus voice-driven surface ripple
+    const s1 = Math.sin(wanderT * n.w1 + n.p1) * n.amp;
+    const s2 = Math.cos(wanderT * n.w2 + n.p2) * n.amp;
+    let x = n.ux + n.t1x * s1 + n.t2x * s2;
+    let y = n.uy + n.t1y * s1 + n.t2y * s2;
+    let z = n.uz + n.t1z * s1 + n.t2z * s2;
+    const ripple = (1 + Math.sin(t / 700 + n.phase) * 0.02
+                      + (speaking ? Math.sin(t / 90 + n.phase * 3) * speakLevel * 0.08 : 0))
+                   / Math.hypot(x, y, z);   // renormalize back onto the sphere
+    x *= ripple; y *= ripple; z *= ripple;
+    // rotate around Y, then X
+    const x1 = x * cyw + z * sy, z1 = -x * sy + z * cyw;
+    const y1 = y * cxw - z1 * sx, z2 = y * sx + z1 * cxw;
+    const scale = FOV / (FOV + z2);          // z2 in [-1,1]; front = bigger
+    n.x = cx + x1 * R * scale;
+    n.y = cy + y1 * R * scale;
+    n.z = z2;
   }
 
-  // edges
-  for (let i = 0; i < N; i++) {
-    for (let j = i + 1; j < N; j++) {
-      const a = nodes[i], b = nodes[j];
-      const dx = a.x - b.x, dy = a.y - b.y;
-      const d = Math.hypot(dx, dy);
-      if (d < LINK_DIST) {
-        const alpha = (1 - d / LINK_DIST) * (0.10 + energy * 0.35);
-        ctx.strokeStyle = `rgba(56, 232, 255, ${alpha})`;
-        ctx.lineWidth = 1;
-        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
-
-        // spawn sparks on active edges while speaking
-        if (speaking && Math.random() < 0.0015 + speakLevel * 0.004) {
-          sparks.push({ a, b, p: 0, v: 0.02 + Math.random() * 0.03 });
-        }
-      }
+  // edges: front connections bright, back ones ghosted; batched by depth
+  for (const b of edgeBuckets) b.length = 0;
+  const baseAlpha = 0.05 + energy * 0.22;
+  for (const e of edges) {
+    const depth = 1 - (e[0].z + e[1].z) / 2; // 0 back .. 2 front
+    edgeBuckets[Math.min(EDGE_BUCKETS - 1, (depth / 2 * EDGE_BUCKETS) | 0)].push(e);
+    // spawn sparks on front-facing edges while speaking
+    if (speaking && depth > 1 && Math.random() < 0.0004 + speakLevel * 0.0015) {
+      sparks.push({ a: e[0], b: e[1], p: 0, v: 0.03 + Math.random() * 0.04 });
     }
   }
+  ctx.lineWidth = 1;
+  for (let k = 0; k < EDGE_BUCKETS; k++) {
+    const bucket = edgeBuckets[k];
+    if (!bucket.length) continue;
+    const depthMid = ((k + 0.5) / EDGE_BUCKETS) * 2;
+    ctx.strokeStyle = `rgba(79, 216, 240, ${baseAlpha * (0.25 + depthMid * 0.55)})`;
+    ctx.beginPath();
+    for (const [a, b] of bucket) { ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); }
+    ctx.stroke();
+  }
 
-  // nodes with glow, gently pulsing
+  // soft core glow behind the dots
+  const core = ctx.createRadialGradient(cx, cy, 0, cx, cy, R * 1.15);
+  core.addColorStop(0, `rgba(79, 216, 240, ${0.05 + energy * 0.10})`);
+  core.addColorStop(1, "rgba(79, 216, 240, 0)");
+  ctx.fillStyle = core;
+  ctx.beginPath(); ctx.arc(cx, cy, R * 1.15, 0, 7); ctx.fill();
+
+  // nodes: sprite glow + bright core, nearer dots larger & brighter
   for (const n of nodes) {
-    const pulse = 1 + Math.sin(t / 900 + n.phase) * 0.25;
-    const r = n.r * pulse * (0.8 + energy * 0.9);
-    const g = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, r * 5);
-    g.addColorStop(0, `rgba(56, 232, 255, ${0.5 + energy * 0.4})`);
-    g.addColorStop(1, "rgba(56, 232, 255, 0)");
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(n.x, n.y, r * 5, 0, 7); ctx.fill();
-    ctx.fillStyle = `rgba(200, 250, 255, ${0.7 + energy * 0.3})`;
+    const depth = (1 - n.z) / 2;             // 0 back .. 1 front
+    const pulse = 1 + Math.sin(t / 900 + n.phase) * 0.2;
+    const r = (0.9 + depth * 1.5) * pulse * (0.8 + energy * 0.6);
+    const bright = 0.22 + depth * 0.62;
+    const gr = r * 4;
+    ctx.globalAlpha = bright * (0.45 + energy * 0.35);
+    ctx.drawImage(glowSprite, n.x - gr, n.y - gr, gr * 2, gr * 2);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = `rgba(210, 250, 255, ${Math.min(1, bright * (0.7 + energy * 0.3))})`;
     ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, 7); ctx.fill();
   }
 
@@ -424,11 +765,11 @@ function frame(t) {
     s.p += s.v;
     const x = s.a.x + (s.b.x - s.a.x) * s.p;
     const y = s.a.y + (s.b.y - s.a.y) * s.p;
-    const g = ctx.createRadialGradient(x, y, 0, x, y, 14);
+    const g = ctx.createRadialGradient(x, y, 0, x, y, 12);
     g.addColorStop(0, "rgba(255, 200, 87, 0.9)");
     g.addColorStop(1, "rgba(255, 200, 87, 0)");
     ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(x, y, 14, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.arc(x, y, 12, 0, 7); ctx.fill();
   }
 
   requestAnimationFrame(frame);

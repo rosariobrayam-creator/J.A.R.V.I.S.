@@ -19,12 +19,18 @@ import numpy as np
 import sounddevice as sd
 from openwakeword.model import Model as WakeModel
 
+from .. import game
+from ..config import (
+    GAME_PAUSE_SECONDS,
+    MAX_COMMAND_SECONDS,
+    PAUSE_SECONDS,
+    WHISPER_THREADS,
+)
+
 SAMPLE_RATE = 16000
 CHUNK = 1280  # 80 ms — the frame size openWakeWord expects
 WAKE_THRESHOLD = 0.5
-SILENCE_SECONDS = 1.1  # stop recording after this much quiet
 MIN_COMMAND_SECONDS = 0.6
-MAX_COMMAND_SECONDS = 14.0
 FOLLOWUP_SPEECH_RMS = 450.0  # int16 RMS that counts as "user started talking"
 WHISPER_MODEL = "base.en"  # ~75 MB, quick on CPU; bump to "small.en" for accuracy
 STREAM_REFRESH_S = 300  # recycle the standby stream this often; a Windows audio
@@ -34,6 +40,12 @@ STREAM_REFRESH_S = 300  # recycle the standby stream this often; a Windows audio
 
 class _Reopen(Exception):
     """Internal: the standby stream should be closed and reopened."""
+
+
+def _pause_seconds() -> float:
+    """How much quiet ends an utterance. Shorter while gaming: the questions
+    are short, and the wait is charged against a mission timer."""
+    return GAME_PAUSE_SECONDS if game.is_game_mode() else PAUSE_SECONDS
 
 
 def _chime(freq: int = 880, ms: int = 120) -> None:
@@ -56,6 +68,11 @@ class Listener:
             wakeword_models=["hey_jarvis"], inference_framework="onnx"
         )
         self._whisper = None  # lazy — first load downloads the model
+        # Timestamps for the per-turn latency log. speech_ended_at is the
+        # moment the user actually stopped talking, which is what they're
+        # counting from — not when we noticed, PAUSE_SECONDS later.
+        self.speech_ended_at = 0.0
+        self.transcribed_at = 0.0
 
     # -- controls -----------------------------------------------------------
 
@@ -75,7 +92,12 @@ class Listener:
         if self._whisper is None:
             from faster_whisper import WhisperModel
 
-            self._whisper = WhisperModel(WHISPER_MODEL, device="cpu", compute_type="int8")
+            self._whisper = WhisperModel(
+                WHISPER_MODEL,
+                device="cpu",
+                compute_type="int8",
+                cpu_threads=WHISPER_THREADS,
+            )
         return self._whisper
 
     def transcribe(self, audio_int16: np.ndarray) -> str:
@@ -94,7 +116,8 @@ class Listener:
         """Record from an open stream until the speaker goes quiet."""
         self.on_state("listening")
         recorded: list[np.ndarray] = list(preroll)
-        silence_needed = int(SILENCE_SECONDS * SAMPLE_RATE / CHUNK)
+        silence = _pause_seconds()
+        silence_needed = int(silence * SAMPLE_RATE / CHUNK)
         max_chunks = int(MAX_COMMAND_SECONDS * SAMPLE_RATE / CHUNK)
         min_chunks = int(MIN_COMMAND_SECONDS * SAMPLE_RATE / CHUNK)
         quiet_run = 0
@@ -112,9 +135,13 @@ class Listener:
             if rms < max(noise_floor, 300.0):
                 quiet_run += 1
                 if quiet_run >= silence_needed and len(recorded) > min_chunks:
+                    # They stopped talking when the quiet started, not now.
+                    self.speech_ended_at = time.monotonic() - silence
                     break
             else:
                 quiet_run = 0
+        else:
+            self.speech_ended_at = time.monotonic()  # hit the hard cap mid-word
         return np.concatenate(recorded)
 
     def _finish(self, audio: np.ndarray | None) -> str | None:
@@ -125,6 +152,7 @@ class Listener:
         self.on_state("thinking")
         self.on_level(0.0)
         text = self.transcribe(audio)
+        self.transcribed_at = time.monotonic()
         self.wake_model.reset()
         return text or None
 

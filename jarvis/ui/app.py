@@ -7,6 +7,7 @@ the page calls back through the exposed js_api (mute toggle).
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 from typing import Callable
 
@@ -35,6 +36,8 @@ class _JsApi:
 class JarvisUI:
     def __init__(self) -> None:
         self.api = _JsApi()
+        self._min_level_interval = 0.0
+        self._last_level_push = {"mic": 0.0, "speak": 0.0}
         self.window = webview.create_window(
             "J.A.R.V.I.S.",
             HTML_PATH.as_uri(),
@@ -56,11 +59,24 @@ class JarvisUI:
         except Exception:
             pass  # window closing/closed — never let UI pushes kill the pipeline
 
+    def set_performance_mode(self, on: bool) -> None:
+        """Game mode: rate-limit the level animations (the only high-frequency
+        pushes) so the webview costs the game as little CPU/GPU as possible."""
+        self._min_level_interval = 0.25 if on else 0.0
+
+    def _push_level(self, channel: str, call: str, level: float) -> None:
+        now = time.monotonic()
+        # zero always goes through so the meter never sticks lit
+        if level > 0.0 and now - self._last_level_push[channel] < self._min_level_interval:
+            return
+        self._last_level_push[channel] = now
+        self._js(f"jarvisUI.{call}({min(1.0, max(0.0, level)):.3f})")
+
     def set_mic_level(self, level: float) -> None:
-        self._js(f"jarvisUI.setMicLevel({min(1.0, max(0.0, level)):.3f})")
+        self._push_level("mic", "setMicLevel", level)
 
     def set_speak_level(self, level: float) -> None:
-        self._js(f"jarvisUI.setSpeakLevel({min(1.0, max(0.0, level)):.3f})")
+        self._push_level("speak", "setSpeakLevel", level)
 
     def set_speaking(self, speaking: bool) -> None:
         self._js(f"jarvisUI.setSpeaking({str(speaking).lower()})")
@@ -83,8 +99,8 @@ class JarvisUI:
     def set_emails(self, payload: dict) -> None:
         self._js(f"jarvisUI.setEmails({json.dumps(payload)})")
 
-    def set_system(self, text: str) -> None:
-        self._js(f"jarvisUI.setSystem({json.dumps(text)})")
+    def set_system(self, stats: dict) -> None:
+        self._js(f"jarvisUI.setSystem({json.dumps(stats)})")
 
     def set_history(self, entries: list[dict]) -> None:
         self._js(f"jarvisUI.setHistory({json.dumps(entries)})")
