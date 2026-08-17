@@ -227,9 +227,9 @@ screen when you ask what you're seeing, and build a daily grind routine from
 what you tell him — saved per game in `game_data/` so it survives restarts.
 
 **Rolling replay (short-term visual memory):** while game mode is on, the
-screen is recorded into a RAM ring buffer — one frame every ~1.2s, the last
-3 minutes kept (~10 MB, negligible CPU; tune in `jarvis/config.py` under
-*Screen replay & watch*). Ask "Jarvis, what just happened?" or "what did the
+screen is recorded into a RAM ring buffer — 5 frames per second at 720p, the
+last 3 minutes kept (~900 frames ≈ 65 MB, negligible CPU; tune in
+`jarvis/config.py` under *Screen replay & watch*). Ask "Jarvis, what just happened?" or "what did the
 dealer have?" and he reviews the recent frames like he watched it live.
 Nothing is written to disk; the buffer clears when replay stops.
 
